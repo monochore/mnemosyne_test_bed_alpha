@@ -319,7 +319,7 @@ class MnemoProcessor extends AudioWorkletProcessor {
             }
 
             let cantor_act = this.sm.cantor > 0.01 ? 1 : 0;
-            let base_cantor_freq = 30 + this.sm.cantor * 1970;
+            let base_cantor_freq = 40 + Math.pow(this.sm.cantor, 1.5) * 280;
             
             let seep_bend = Math.max(0, Math.min(1, (this.sm.seep - 0.75) * 4.0));
             let mica_c = Math.sin(time_sec * 0.040 * this.TWOPI);
