@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MNEMOSYNE - Shatter Engine</title>
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600&display=swap');
+    :root {
+        --bg: #0c0c0c; --panel: #111111; --border-main: #ffffff; --col-div: rgba(255, 255, 255, 0.25);
+        --c-green: #00ff44; --c-amber: #ff9d00; --c-cyan: #00aaff; --c-red: #ff4444;
+        --text-dim: #bbbbbb;
+    }
+    body { background-color: var(--bg); color: #fff; font-family: 'Oswald', sans-serif; margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; user-select: none; overflow: hidden; }
+    
+    #chassis { display: flex; flex-direction: row; background-color: var(--panel); border: 2px solid var(--border-main); outline: 2px solid var(--border-main); outline-offset: -8px; padding: 10px; box-shadow: inset 0 0 60px rgba(0,0,0,0.9), 0 20px 50px rgba(0,0,0,0.8); transform-origin: center center; }
+    .vertical-text { writing-mode: vertical-rl; transform: rotate(180deg); text-align: center; font-size: 14px; font-weight: 500; letter-spacing: 6px; padding: 0 15px; color: var(--text-dim); display: flex; align-items: center; justify-content: center; }
+    .panel-core { display: flex; border-left: 1px solid var(--col-div); border-right: 1px solid var(--col-div); padding: 15px 0; }
+    
+    .column { width: 155px; display: flex; flex-direction: column; align-items: center; border-right: 1px solid var(--col-div); padding: 0 5px; position: relative; }
+    .column:last-child { border-right: none; }
+    .col-header { font-size: 14px; letter-spacing: 2px; margin-bottom: 20px; text-transform: uppercase; color: var(--text-dim); height: 20px; text-align: center; transition: color 0.05s ease, text-shadow 0.05s ease; }
+    
+    .oled-container { width: 140px; background: #000; border: 1px solid #333; margin-bottom: 15px; display: flex; flex-direction: column; align-items: center; padding: 5px; box-sizing: border-box; box-shadow: inset 0 0 10px rgba(255,255,255,0.05); }
+    #scope { width: 100%; height: 40px; background: #050505; margin-bottom: 6px; border: 1px solid #222; cursor: pointer; }
+    .oled-row { display: flex; width: 100%; justify-content: space-between; margin-bottom: 5px; gap: 2px; }
+    .oled-btn { flex: 1; background: transparent; border: 1px solid #555; color: #fff; font-family: 'Oswald', sans-serif; font-size: 9px; padding: 3px 0; cursor: pointer; text-transform: uppercase; transition: 0.1s; text-align: center; }
+    .oled-btn:hover { background: #333; }
+    .oled-btn.active { background: var(--border-main); color: #000; }
+    .oled-btn.freeze { background: #111; border-color: var(--c-cyan); color: var(--c-cyan); font-weight: bold; font-size: 11px; padding: 5px 0; letter-spacing: 1px; }
+    .oled-btn.freeze.active { background: var(--c-cyan); color: #000; box-shadow: 0 0 10px var(--c-cyan); }
+    
+    #ab-slider::-webkit-slider-thumb { appearance: none; width: 8px; height: 12px; background: #fff; cursor: pointer; }
+    #preset-list { width: 100%; background: #000; color: var(--border-main); border: 1px solid #555; font-family: 'Oswald', sans-serif; font-size: 10px; outline: none; padding: 2px; }
+    
+    .knob-group { display: flex; flex-direction: column; align-items: center; margin-bottom: 20px; width: 100%; }
+    .knob-row { display: flex; justify-content: space-evenly; width: 100%; margin-bottom: 20px; }
+    .knob-container { display: flex; flex-direction: column; align-items: center; position: relative; }
+    .knob-label { font-size: 10px; margin-bottom: 6px; letter-spacing: 1px; text-transform: uppercase; }
+    .knob-svg { width: 44px; height: 44px; cursor: ns-resize; overflow: visible; filter: drop-shadow(0 4px 4px rgba(0,0,0,0.5)); }
+    .knob-bg { fill: #1c1c1c; stroke-width: 2.5px; }
+    .knob-indicator { stroke: #fff; stroke-width: 2.5px; stroke-linecap: round; }
+    
+    .col-sys .knob-bg { stroke: var(--c-green); } .col-sys .knob-label { color: var(--c-green); }
+    .col-pat .knob-bg { stroke: var(--c-amber); } .col-pat .knob-label { color: var(--c-amber); }
+    .col-tes .knob-bg { stroke: var(--c-cyan); }  .col-tes .knob-label { color: var(--c-cyan); }
+    .col-des .knob-bg { stroke: var(--c-red); }   .col-des .knob-label { color: var(--c-red); }
+</style>
+</head>
+<body>
+<div id="chassis">
+    <div class="vertical-text">MNEMOSYNE</div>
+    <div class="panel-core">
+        
+        <!-- COLUMN 1: SYSTEM & OLED -->
+        <div class="column col-sys">
+            <div class="col-header" id="hdr-sys">SYSTEM</div>
+            <div class="oled-container">
+                <canvas id="scope" title="Click to toggle Seismograph"></canvas>
+                <div class="oled-row">
+                    <button class="oled-btn" id="btn-activate">ACTIVATE</button>
+                    <button class="oled-btn" id="btn-scatter">SCATTER</button>
+                </div>
+                <div class="oled-row">
+                    <button class="oled-btn" id="btn-dump">DUMP</button>
+                    <button class="oled-btn" id="btn-rec">REC</button>
+                    <button class="oled-btn" id="btn-drift">DRIFT</button>
+                </div>
+                <div class="oled-row" style="margin-bottom: 5px;">
+                    <div style="display:flex; flex: 1; align-items:center; justify-content:center; background:#111; border:1px solid #333; padding:0 2px;">
+                        <button class="oled-btn" id="btn-a" style="border:none; padding:2px; min-width:15px; color:#aaa;">A</button>
+                        <input type="range" id="ab-slider" min="0" max="1" step="0.001" value="0" style="width: 50px; flex: none; margin: 0 10px; height: 2px; -webkit-appearance: none; background: #555; outline: none;">
+                        <button class="oled-btn" id="btn-b" style="border:none; padding:2px; min-width:15px; color:#aaa;">B</button>
+                    </div>
+                </div>
+                <select id="preset-list" style="margin-bottom: 5px;"><option value="init">INITIALIZED</option></select>
+                
+                <div class="oled-row" style="margin-top: 5px;">
+                    <button class="oled-btn" id="btn-mic">MIC</button>
+                    <button class="oled-btn" id="btn-file">FILE</button>
+                    <input type="file" id="file-upload" accept="audio/*" style="display:none;">
+                </div>
+                <button class="oled-btn freeze" id="btn-freeze" style="width:100%;">FREEZE</button>
+            </div>
+            
+            <div class="knob-row">
+                <div class="knob-container"><div class="knob-label">FAULT</div><svg class="knob-svg" id="fault" data-val="0" viewBox="0 0 44 44"><circle class="knob-bg" cx="22" cy="22" r="18"></circle><line class="knob-indicator" x1="22" y1="22" x2="22" y2="8"></line></svg></div>
+                <div class="knob-container"><div class="knob-label">SEEP</div><svg class="knob-svg" id="seep" data-val="0" viewBox="0 0 44 44"><circle class="knob-bg" cx="22" cy="22" r="18"></circle><line class="knob-indicator" x1="22" y1="22" x2="22" y2="8"></line></svg></div>
+            </div>
+            <div class="knob-group"><div class="knob-container"><div class="knob-label">ANDAMENTO</div><svg class="knob-svg" id="andamento" data-val="0.5" viewBox="0 0 44 44"><circle class="knob-bg" cx="22" cy="22" r="18"></circle><line class="knob-indicator" x1="22" y1="22" x2="22" y2="8"></line></svg></div></div>
+        </div>
+
+        <!-- COLUMN 2: I. PATINA -->
+        <div class="column col-pat">
+            <div class="col-header" id="hdr-pat">I. PATINA</div>
+            <div class="knob-group" style="margin-top: 30px;"><div class="knob-container"><div class="knob-label">CADENCE</div><svg class="knob-svg" id="cadence" data-val="0.5" viewBox="0 0 44 44"><circle class="knob-bg" cx="22" cy="22" r="18"></circle><line class="knob-indicator" x1="22" y1="22" x2="22" y2="8"></line></svg></div></div>
+            <div class="knob-row" style="margin-top: 30px;">
+                <div class="knob-container"><div class="knob-label">INDEX</div><svg class="knob-svg" id="index" data-val="0" viewBox="0 0 44 44"><circle class="knob-bg" cx="22" cy="22" r="18"></circle><line class="knob-indicator" x1="22" y1="22" x2="22" y2="8"></line></svg></div>
+                <div class="knob-container"><div class="knob-label">EROSION</div><svg class="knob-svg" id="erosion" data-val="0" viewBox="0 0 44 44"><circle class="knob-bg" cx="22" cy="22" r="18"></circle><line class="knob-indicator" x1="22" y1="22" x2="22" y2="8"></line></svg></div>
+            </div>
+            <div class="knob-group" style="margin-top: 30px;"><div class="knob-container"><div class="knob-label">SILICA</div><svg class="knob-svg" id="silica" data-val="0" viewBox="0 0 44 44"><circle class="knob-bg" cx="22" cy="22" r="18"></circle><line class="knob-indicator" x1="22" y1="22" x2="22" y2="8"></line></svg></div></div>
+        </div>
+
+        <!-- COLUMN 3: II. TESSELLATION -->
+        <div class="column col-tes">
+            <div class="col-header" id="hdr-tes">II. TESSELLATION</div>
+            <div class="knob-group" style="margin-top: 30px;"><div class="knob-container"><div class="knob-label">BLOCK</div><svg class="knob-svg" id="block" data-val="0.8" viewBox="0 0 44 44"><circle class="knob-bg" cx="22" cy="22" r="18"></circle><line class="knob-indicator" x1="22" y1="22" x2="22" y2="8"></line></svg></div></div>
+            <div class="knob-row" style="margin-top: 30px;">
+                <div class="knob-container"><div class="knob-label">TILE</div><svg class="knob-svg" id="tile" data-val="0.5" viewBox="0 0 44 44"><circle class="knob-bg" cx="22" cy="22" r="18"></circle><line class="knob-indicator" x1="22" y1="22" x2="22" y2="8"></line></svg></div>
+                <div class="knob-container"><div class="knob-label">FRAG</div><svg class="knob-svg" id="fragment" data-val="0.3" viewBox="0 0 44 44"><circle class="knob-bg" cx="22" cy="22" r="18"></circle><line class="knob-indicator" x1="22" y1="22" x2="22" y2="8"></line></svg></div>
+            </div>
+            <div class="knob-group" style="margin-top: 30px;"><div class="knob-container"><div class="knob-label">FRIT</div><svg class="knob-svg" id="frit" data-val="0" viewBox="0 0 44 44"><circle class="knob-bg" cx="22" cy="22" r="18"></circle><line class="knob-indicator" x1="22" y1="22" x2="22" y2="8"></line></svg></div></div>
+        </div>
+
+        <!-- COLUMN 4: III. DESCENT -->
+        <div class="column col-des">
+            <div class="col-header" id="hdr-des">III. DESCENT</div>
+            <div class="knob-group" style="margin-top: 30px;"><div class="knob-container"><div class="knob-label">UNDERTOW</div><svg class="knob-svg" id="undertow" data-val="0" viewBox="0 0 44 44"><circle class="knob-bg" cx="22" cy="22" r="18"></circle><line class="knob-indicator" x1="22" y1="22" x2="22" y2="8"></line></svg></div></div>
+            <div class="knob-row" style="margin-top: 30px;">
+                <div class="knob-container"><div class="knob-label">CANTOR</div><svg class="knob-svg" id="cantor" data-val="0" viewBox="0 0 44 44"><circle class="knob-bg" cx="22" cy="22" r="18"></circle><line class="knob-indicator" x1="22" y1="22" x2="22" y2="8"></line></svg></div>
+                <div class="knob-container"><div class="knob-label">LETHE</div><svg class="knob-svg" id="lethe" data-val="0" viewBox="0 0 44 44"><circle class="knob-bg" cx="22" cy="22" r="18"></circle><line class="knob-indicator" x1="22" y1="22" x2="22" y2="8"></line></svg></div>
+            </div>
+            <div class="knob-group" style="margin-top: 30px;"><div class="knob-container"><div class="knob-label">SCATTER</div><svg class="knob-svg" id="scatter" data-val="0" viewBox="0 0 44 44"><circle class="knob-bg" cx="22" cy="22" r="18"></circle><line class="knob-indicator" x1="22" y1="22" x2="22" y2="8"></line></svg></div></div>
+        </div>
+    </div>
+    <div class="vertical-text">SHATTER ENGINE</div>
+</div>
+
+<script>
+function fitToScreen() {
+    const chassis = document.getElementById('chassis');
+    chassis.style.transform = 'none'; 
+    const rect = chassis.getBoundingClientRect();
+    const padding = 20; 
+    const scaleX = window.innerWidth / (rect.width + padding);
+    const scaleY = window.innerHeight / (rect.height + padding);
+    const scale = Math.min(1, scaleX, scaleY); 
+    chassis.style.transform = `scale(${scale})`;
+}
+window.addEventListener('resize', fitToScreen);
+setTimeout(fitToScreen, 50);
+
+const workletString = `
+class SafeDelay {
+    constructor(size) { this.size = size; this.buf = new Float32Array(size); this.writeIdx = 0; }
+    write(val) { if(isNaN(val)) val = 0; this.buf[this.writeIdx] = val; this.writeIdx = (this.writeIdx + 1) % this.size; }
+    read(sAgo) {
+        if(isNaN(sAgo)) sAgo = 0; sAgo = Math.max(0, Math.min(sAgo, this.size - 2)); 
+        let rPos = this.writeIdx - sAgo; while(rPos < 0) rPos += this.size;
+        let i1 = Math.floor(rPos); let i2 = (i1 + 1) % this.size; let frac = rPos - i1;
+        return this.buf[i1] + frac * (this.buf[i2] - this.buf[i1]);
+    }
+}
+class MnemoProcessor extends AudioWorkletProcessor {
+    constructor() {
+        super();
+        this.p = { trace: 0, fault: 0, seep: 0, andamento: 0, cadence: 0, index: 0, erosion: 0, silica: 0, block: 0, tile: 0, fragment: 0, frit: 0, undertow: 0, cantor: 0, lethe: 0, scatter: 0 };
+        this.port.onmessage = e => { if (e.data.id && this.p[e.data.id] !== undefined) this.p[e.data.id] = e.data.value; };
+        
+        this.len = 96000;
+        this.stratum = new Float32Array(this.len);
+        this.rec_pos = 0;
+        this.bbd = new SafeDelay(96000);
+        this.bbd_hist = 0;
+        
+        this.sm = { cadence:0, andamento:0, index:0, ero:0, sil:0, seep:0, block:0, tile:0, frag:0, frit:0, under:0, cantor:0, lethe:0, scatter:0 };
+        this.p1=0; this.p2=0; this.p3=0; this.p4=0; this.p_under=0; this.p_spin=0; this.cantor_ph_c=0; this.cantor_ph_s=0; this.eidolon_ph=0;
+        this.prev_p1=0; this.prev_p2=0; this.prev_p3=0; this.prev_p4=0; this.prev_p137=0; this.prev_sr=0;
+        
+        this.fault_state = 0; this.g1=1; this.g2=1; this.g3=1; this.g4=1;
+        this.dust_octave = 0; this.spin_scatter = 0; this.spin_gate = 0; this.euclid_acc = 0;
+        this.glitch_L=0; this.glitch_R=0;
+        this.TWOPI = Math.PI * 2; this.fc = 0;
+        
+        this.tel_mosaic = 0; this.tel_shatter = 0; this.tel_cantor = 0; this.tel_bbd = 0;
+    }
+    slide(t, c, u, d) { if(isNaN(c)) c=0; let diff=t-c; return c+(diff>0?diff/Math.max(1,u):diff/Math.max(1,d)); }
+    noise() { return Math.random()*2-1; }
+    wrap(v, min, max) { let r=max-min; if(r===0) return min; let res=(v-min)%r; if(res<0) res+=r; return res+min; }
+    sah(val, trig, thresh = -0.5, ref) { if (trig < thresh) return val; return ref; }
+    
+    process(ins, outs) {
+        const input = ins[0][0]; const outL = outs[0][0]; const outR = outs[0][1];
+        if (!outL || !outR) return true;
+        const sr = sampleRate;
+        
+        for (let i = 0; i < outL.length; i++) {
+            let in1 = input ? input[i] : 0;
+            
+            this.sm.cadence = this.slide(this.p.cadence, this.sm.cadence, 100, 4000);
+            this.sm.andamento = this.slide(this.p.andamento, this.sm.andamento, 100, 4000);
+            this.sm.index = this.slide(this.p.index, this.sm.index, 50, 50);
+            
+            let sl = 2000;
+            this.sm.ero = this.slide(this.p.erosion, this.sm.ero, sl, sl);
+            this.sm.sil = this.slide(this.p.silica, this.sm.sil, sl, sl);
+            this.sm.seep = this.slide(this.p.seep, this.sm.seep, sl, sl);
+            this.sm.block = this.slide(this.p.block, this.sm.block, sl, sl);
+            this.sm.tile = this.slide(this.p.tile, this.sm.tile, sl, sl);
+            this.sm.frag = this.slide(this.p.fragment, this.sm.frag, sl, sl);
+            this.sm.frit = this.slide(this.p.frit, this.sm.frit, sl, sl);
+            this.sm.under = this.slide(this.p.undertow, this.sm.under, sl, sl);
+            this.sm.cantor = this.slide(this.p.cantor, this.sm.cantor, sl, sl);
+            this.sm.lethe = this.slide(this.p.lethe, this.sm.lethe, sl, sl);
+            this.sm.scatter = this.slide(this.p.scatter, this.sm.scatter, sl, sl);
+
+            let scan_offset = this.sm.index * this.len;
+            let cadence_mult = Math.pow(2, (this.sm.cadence * 2) - 1);
+            let tape_speed_samples = 48000 * cadence_mult;
+
+            if (this.p.trace === 0) {
+                this.stratum[Math.floor(this.rec_pos)] = in1;
+                this.rec_pos = (this.rec_pos + 1) % this.len;
+            }
+
+            this.fault_state = this.p.fault > 0.66 ? 2 : (this.p.fault > 0.33 ? 1 : 0);
+            
+            let time_sec = currentTime + (i/sr);
+            let drift1 = Math.sin(time_sec * 0.07 * this.TWOPI) * (this.sm.seep * 0.04);
+            let drift2 = Math.sin(time_sec * 0.11 * this.TWOPI) * (this.sm.seep * 0.04);
+            let drift3 = Math.sin(time_sec * 0.13 * this.TWOPI) * (this.sm.seep * 0.04);
+            let drift4 = Math.sin(time_sec * 0.19 * this.TWOPI) * (this.sm.seep * 0.04);
+
+            let m1 = 1 + drift1;
+            let m2 = (this.fault_state == 1 ? 2.013 : 2) + drift2;
+            let m3 = (this.fault_state == 1 ? 3.987 : 4) + drift3;
+            let m4 = (this.fault_state == 1 ? 8.041 : 8) + drift4;
+
+            let andamento_mult = Math.max(Math.pow(this.sm.andamento, 3) * 3.0, 0.001);
+            let base_freq = 2.0 * andamento_mult;
+            
+            let f1 = Math.max(base_freq * m1, 0.001); let f2 = Math.max(base_freq * m2, 0.001);
+            let f3 = Math.max(base_freq * m3, 0.001); let f4 = Math.max(base_freq * m4, 0.001);
+
+            this.p1 = this.wrap(this.p1 + f1/sr, 0, 1); let dp1 = this.p1 - this.prev_p1; this.prev_p1 = this.p1;
+            this.p2 = this.wrap(this.p2 + f2/sr, 0, 1); let dp2 = this.p2 - this.prev_p2; this.prev_p2 = this.p2;
+            this.p3 = this.wrap(this.p3 + f3/sr, 0, 1); let dp3 = this.p3 - this.prev_p3; this.prev_p3 = this.p3;
+            this.p4 = this.wrap(this.p4 + f4/sr, 0, 1); let dp4 = this.p4 - this.prev_p4; this.prev_p4 = this.p4;
+
+            if (this.fault_state == 2) {
+                if(dp1 < -0.5) this.g1 = this.noise() > -0.2 ? 1 : 0;
+                if(dp2 < -0.5) this.g2 = this.noise() > 0.2 ? 1 : 0;
+                if(dp3 < -0.5) this.g3 = this.noise() > 0.5 ? 1 : 0;
+                if(dp4 < -0.5) this.g4 = this.noise() > 0.7 ? 1 : 0;
+            } else { this.g1=1; this.g2=1; this.g3=1; this.g4=1; }
+
+            let win1 = (this.p1 < 0.5 ? 1 : 0) * (1 - this.sm.ero) + Math.sin(this.p1 * Math.PI) * this.sm.ero * this.g1;
+            let win2 = (this.p2 < 0.5 ? 1 : 0) * (1 - this.sm.ero) + Math.sin(this.p2 * Math.PI) * this.sm.ero * this.g2;
+            let win3 = (this.p3 < 0.5 ? 1 : 0) * (1 - this.sm.ero) + Math.sin(this.p3 * Math.PI) * this.sm.ero * this.g3;
+            let win4 = (this.p4 < 0.5 ? 1 : 0) * (1 - this.sm.ero) + Math.sin(this.p4 * Math.PI) * this.sm.ero * this.g4;
+
+            let ws1 = Math.max(1, Math.min(this.len, tape_speed_samples / f1));
+            let ws2 = Math.max(1, Math.min(this.len, tape_speed_samples / f2));
+            let ws3 = Math.max(1, Math.min(this.len, tape_speed_samples / f3));
+            let ws4 = Math.max(1, Math.min(this.len, tape_speed_samples / f4));
+
+            let chunk = this.len / 4;
+            let idx1 = ((this.p1 * ws1) + scan_offset) % this.len;
+            let idx2 = ((this.p2 * ws2) + chunk + scan_offset) % this.len;
+            let idx3 = ((this.p3 * ws3) + (chunk * 2) + scan_offset) % this.len;
+            let idx4 = ((this.p4 * ws4) + (chunk * 3) + scan_offset) % this.len;
+
+            let v1 = this.stratum[Math.floor(idx1)] * win1 * this.sm.block;
+            let v2 = this.stratum[Math.floor(idx2)] * win2 * this.sm.tile;
+            
+            let seep_choke = Math.max(0, Math.min(1, (this.sm.seep - 0.5) * 2.0));
+            let choke_win3 = 1.0 * (1 - seep_choke) + (1.0 - win1) * seep_choke;
+            let choke_win4 = 1.0 * (1 - seep_choke) + (1.0 - win2) * seep_choke;
+
+            let v3 = this.stratum[Math.floor(idx3)] * win3 * this.sm.frag * choke_win3;
+            let v4 = this.stratum[Math.floor(idx4)] * win4 * this.sm.frit * choke_win4;
+
+            let mosaic_core = v1 + v2 + v3 + v4;
+
+            let seep_stutter = Math.max(0, Math.min(1, (this.sm.seep - 0.75) * 4.0));
+            if(dp2 < -0.5) this.stutter_gate = this.noise() > 0.1 ? 1 : 0;
+            let dry_mosaic = mosaic_core * (1.0 * (1 - seep_stutter) + (this.stutter_gate||0) * seep_stutter);
+
+            this.p_under = this.wrap(this.p_under + (cadence_mult * 1.0)/sr, 0, 1);
+            let idx_under = (this.len - (this.p_under * this.len) + scan_offset) % this.len;
+            let v_under = this.stratum[Math.floor(idx_under)] * Math.sin(this.p_under * Math.PI) * this.sm.under;
+
+            let p137 = this.wrap(time_sec * cadence_mult * 13.7, 0, 1);
+            let dp137 = p137 - this.prev_p137; this.prev_p137 = p137;
+            if(dp137 < -0.5) {
+                this.dust_octave = Math.floor(Math.abs(this.noise()) * 3);
+                this.spin_scatter = Math.abs(this.noise()) * this.len;
+                this.spin_gate = this.noise() > 0.3 ? 1 : 0;
+            }
+            let dust_mult = Math.pow(2, this.dust_octave);
+            let dust_speed = (cadence_mult * 13.7) * dust_mult;
+            
+            this.p_spin = this.wrap(this.p_spin + dust_speed/sr, 0, 1);
+            let ws_spin = Math.max(1, Math.min(this.len, tape_speed_samples / dust_speed));
+            let idx_spin = ((this.p_spin * ws_spin) + this.spin_scatter + scan_offset) % this.len;
+
+            if(dp3 < -0.5) this.euclid_acc++;
+            let is_euclid = ((this.euclid_acc % 16) * 5) % 16 < 5 ? 1 : 0;
+            let idx_euclid = ((this.p3 * ws3) + scan_offset) % this.len;
+
+            let lock_act = this.sm.scatter > 0.95 ? 1 : 0;
+            let final_sc_gate = this.spin_gate * (1-lock_act) + is_euclid * lock_act;
+            let final_sc_idx = idx_spin * (1-lock_act) + idx_euclid * lock_act;
+            let final_sc_win = (Math.sin(this.p_spin*Math.PI)*(1-lock_act) + Math.sin(this.p3*Math.PI)*lock_act) * final_sc_gate;
+
+            let v_scatter = this.stratum[Math.floor(final_sc_idx)] * final_sc_win * this.sm.scatter;
+
+            let raw_L = dry_mosaic + v_under;
+            let raw_R = dry_mosaic + v_scatter;
+
+            let sr_rate = Math.max(100, 48000 - (this.sm.sil * 47500));
+            let p_sr = this.wrap(time_sec * sr_rate, 0, 1);
+            if (p_sr < this.prev_sr) { this.glitch_L = raw_L; this.glitch_R = raw_R; }
+            this.prev_sr = p_sr;
+
+            let foldL = raw_L; let foldR = raw_R;
+            if(this.sm.sil > 0.01) {
+                let fvL = this.glitch_L * (1 + this.sm.sil * 4);
+                foldL = Math.abs((fvL + 1) % 4 - 2) - 1; 
+                let fvR = this.glitch_R * (1 + this.sm.sil * 4);
+                foldR = Math.abs((fvR + 1) % 4 - 2) - 1;
+            }
+
+            let cantor_act = this.sm.cantor > 0.01 ? 1 : 0;
+            let base_cantor_freq = 30 + this.sm.cantor * 1970;
+            
+            let seep_bend = Math.max(0, Math.min(1, (this.sm.seep - 0.75) * 4.0));
+            let mica_c = Math.sin(time_sec * 0.040 * this.TWOPI);
+            let mica_s = Math.sin(time_sec * 0.047 * this.TWOPI);
+            
+            let pm_c = 1.0 + (mica_c * 0.03 * seep_bend);
+            let pm_s = 1.0 + (mica_s * 0.03 * seep_bend);
+            let c_drift = Math.sin(time_sec * 0.15 * this.TWOPI) * 0.005;
+            let c_melt = (foldL + foldR) * 0.1;
+
+            this.cantor_ph_c = this.wrap(this.cantor_ph_c + (base_cantor_freq * pm_c * (1+c_drift))/sr, 0, 1);
+            this.cantor_ph_s = this.wrap(this.cantor_ph_s + ((base_cantor_freq*0.5) * pm_s * (1+c_drift))/sr, 0, 1);
+
+            let c_core = Math.sin((this.cantor_ph_c + c_melt) * this.TWOPI);
+            let c_sub = Math.sin((this.cantor_ph_s + c_melt) * this.TWOPI) * this.sm.seep;
+            
+            let c_pre = (c_core + c_sub) * 1.5;
+            let c_fold = Math.abs((c_pre + 1) % 4 - 2) - 1;
+            let cantor_sig = c_fold * this.sm.cantor * cantor_act * 0.25;
+
+            let e_gate = Math.max(0, Math.min(1, (this.sm.seep - 0.7) * 3.3));
+            this.eidolon_ph = this.wrap(this.eidolon_ph + ((base_cantor_freq * 4.0) * (1.0 + mica_c*0.05))/sr, 0, 1);
+            let e_core = Math.sin((this.eidolon_ph + c_melt) * this.TWOPI);
+            let eidolon_sig = e_core * Math.abs(mosaic_core) * e_gate * this.sm.cantor * 0.3;
+
+            let tank1 = 11300 + (Math.sin(time_sec * 0.11 * this.TWOPI) * 50);
+            let tank2 = 17900 + (Math.cos(time_sec * 0.17 * this.TWOPI) * 70);
+            
+            let tap1 = this.bbd.read(tank1); let tap2 = this.bbd.read(tank2);
+            let bbd_lp = ((tap1 + tap2) * 0.5) * 0.35 + this.bbd_hist * 0.65;
+            this.bbd_hist = bbd_lp;
+            
+            let bbd_fb = Math.tanh(bbd_lp * (this.sm.lethe * 0.96));
+            
+            let seep_flood = Math.max(0, Math.min(1, (this.sm.seep - 0.9) * 10.0)) * 0.3;
+            let seep_bl_pre = mosaic_core * 2.0;
+            let seep_bl = (Math.abs((seep_bl_pre + 1) % 4 - 2) - 1) * ((this.sm.seep * 0.4) + seep_flood);
+
+            let bbd_in = ((foldL + foldR) * 0.5) + cantor_sig + eidolon_sig + (v_under * 0.1) + seep_bl + bbd_fb;
+            this.bbd.write(bbd_in);
+
+            let wet_L = foldL + cantor_sig + eidolon_sig + (bbd_lp * this.sm.lethe);
+            let wet_R = foldR + cantor_sig + eidolon_sig + (bbd_lp * this.sm.lethe);
+
+            outL[i] = in1 * (1 - this.p.trace) + wet_L * this.p.trace;
+            outR[i] = in1 * (1 - this.p.trace) + wet_R * this.p.trace;
+
+            this.tel_mosaic = Math.abs(mosaic_core);
+            this.tel_shatter = Math.abs(foldL);
+            this.tel_cantor = Math.abs(cantor_sig);
+            this.tel_bbd = Math.abs(bbd_lp);
+        }
+
+        this.fc += outL.length;
+        if (this.fc >= 1024) { 
+            this.port.postMessage({ type: 'telemetry', envs: [this.tel_mosaic, this.tel_shatter, this.tel_cantor, this.tel_bbd] }); 
+            this.fc = 0; 
+        }
+        return true;
+    }
+}
+registerProcessor('mnemo-node', MnemoProcessor);
+`;
+
+let audioCtx, mnemoNode, analyzer, scopeData, recNode; let isPlaying = false; 
+let presets = JSON.parse(localStorage.getItem('mnemosyne_presets_v1')) || {};
+const canvas = document.getElementById('scope'); const ctx = canvas.getContext('2d'); canvas.width = 140; canvas.height = 40;
+
+let scopeMode = 0; let seismoHistory = new Array(canvas.width).fill(0);
+canvas.addEventListener('click', () => { scopeMode = 1 - scopeMode; });
+
+function drawScope() {
+    requestAnimationFrame(drawScope); ctx.fillStyle = '#050505'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    if (!analyzer || !isPlaying) return;
+    analyzer.getByteTimeDomainData(scopeData); 
+    if (scopeMode === 0) {
+        ctx.lineWidth = 1.5; ctx.strokeStyle = '#00ff44'; ctx.beginPath();
+        let sliceWidth = canvas.width * 1.0 / scopeData.length; let x = 0;
+        for(let i = 0; i < scopeData.length; i++) { let v = scopeData[i] / 128.0; let y = v * canvas.height / 2; if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); x += sliceWidth; }
+        ctx.lineTo(canvas.width, canvas.height/2); ctx.stroke();
+    } else {
+        let peak = 0; for(let i=0; i<scopeData.length; i++) { let v = Math.abs(scopeData[i] - 128) / 128.0; if(v > peak) peak = v; }
+        seismoHistory.shift(); seismoHistory.push(peak); ctx.fillStyle = '#ff4444';
+        for(let x=0; x<canvas.width; x++) { let h = seismoHistory[x] * canvas.height; ctx.fillRect(x, canvas.height - h, 1, h); }
+    }
+}
+drawScope();
+
+function setKnobValue(knob, val) { val = Math.max(0, Math.min(1, val)); knob.dataset.val = val; let angle = -135 + (val * 270); knob.querySelector('.knob-indicator').setAttribute('transform', `rotate(${angle}, 22, 22)`); sendParam(knob.id, val); }
+function sendParam(id, val) { if (mnemoNode) mnemoNode.port.postMessage({ id: id, value: val }); }
+function syncAllParams() { document.querySelectorAll('.knob-svg').forEach(knob => { sendParam(knob.id, parseFloat(knob.dataset.val)); }); }
+
+function updateGlow(id, intensity, r, g, b) {
+    const el = document.getElementById(id); if(!el) return; let i = Math.min(1, intensity * 2.5);
+    if (i < 0.02) { el.style.color = 'var(--text-dim)'; el.style.textShadow = 'none'; } 
+    else { el.style.color = `rgba(${r}, ${g}, ${b}, ${0.7 + i * 0.3})`; el.style.textShadow = `0 0 ${i * 8}px rgba(${r}, ${g}, ${b}, ${i}), 0 0 ${i * 16}px rgba(${r}, ${g}, ${b}, ${i * 0.5})`; }
+}
+
+let isRecording = false; let recBuffersL = []; let recBuffersR = []; let recLength = 0;
+let micStream = null, fileSource = null; let extGain = null;
+
+async function initAudio() {
+    if (audioCtx) return;
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'interactive' });
+    const blob = new Blob([workletString], { type: 'application/javascript' });
+    await audioCtx.audioWorklet.addModule(URL.createObjectURL(blob));
+    mnemoNode = new AudioWorkletNode(audioCtx, 'mnemo-node', { outputChannelCount: [2] });
+    
+    mnemoNode.port.onmessage = e => {
+        if (e.data.type === 'telemetry') {
+            const [e1, e2, e3, e4] = e.data.envs;
+            updateGlow('hdr-sys', e1, 0, 255, 68);   // Green
+            updateGlow('hdr-pat', e2, 255, 157, 0);  // Amber
+            updateGlow('hdr-tes', e3, 0, 170, 255);  // Cyan
+            updateGlow('hdr-des', e4, 255, 68, 68);  // Red
+        }
+    };
+    
+    extGain = audioCtx.createGain(); extGain.connect(mnemoNode);
+    analyzer = audioCtx.createAnalyser(); analyzer.fftSize = 512; scopeData = new Uint8Array(analyzer.frequencyBinCount);
+    
+    recNode = audioCtx.createScriptProcessor(4096, 2, 2);
+    recNode.onaudioprocess = function(e) {
+        if (!isRecording) return;
+        recBuffersL.push(new Float32Array(e.inputBuffer.getChannelData(0))); recBuffersR.push(new Float32Array(e.inputBuffer.getChannelData(1))); recLength += e.inputBuffer.getChannelData(0).length;
+    };
+
+    mnemoNode.connect(analyzer); analyzer.connect(audioCtx.destination);
+    mnemoNode.connect(recNode); recNode.connect(audioCtx.destination);
+    
+    isPlaying = true; document.getElementById('btn-activate').classList.add('active'); syncAllParams();
+}
+
+document.querySelectorAll('.knob-svg').forEach(knob => {
+    let isDragging = false, startY, startVal; setKnobValue(knob, parseFloat(knob.dataset.val));
+    knob.addEventListener('mousedown', e => { isDragging = true; startY = e.clientY; startVal = parseFloat(knob.dataset.val); });
+    window.addEventListener('mousemove', e => { if(!isDragging) return; let delta = (startY - e.clientY) * 0.005; setKnobValue(knob, startVal + delta); });
+    window.addEventListener('mouseup', () => { isDragging = false; });
+});
+
+document.getElementById('btn-activate').addEventListener('click', (e) => {
+    if (!audioCtx) { initAudio(); } else if (audioCtx.state === 'running') { audioCtx.suspend(); isPlaying = false; e.target.classList.remove('active'); } else { audioCtx.resume(); isPlaying = true; e.target.classList.add('active'); }
+});
+document.getElementById('btn-scatter').addEventListener('click', () => { document.querySelectorAll('.knob-svg').forEach(knob => { setKnobValue(knob, Math.random()); }); });
+
+let isDrifting = false;
+document.getElementById('btn-drift').addEventListener('click', (e) => { isDrifting = !isDrifting; e.target.classList.toggle('active', isDrifting); });
+setInterval(() => { if(!isDrifting || !isPlaying) return; document.querySelectorAll('.knob-svg').forEach(knob => { let v = parseFloat(knob.dataset.val) + (Math.random() - 0.5) * 0.002; setKnobValue(knob, v); }); }, 50);
+
+let stateA = null, stateB = null;
+document.getElementById('btn-a').addEventListener('click', (e) => { stateA = {}; document.querySelectorAll('.knob-svg').forEach(k => stateA[k.id] = parseFloat(k.dataset.val)); e.target.style.color = '#fff'; document.getElementById('btn-b').style.color = '#aaa'; document.getElementById('ab-slider').value = 0; });
+document.getElementById('btn-b').addEventListener('click', (e) => { stateB = {}; document.querySelectorAll('.knob-svg').forEach(k => stateB[k.id] = parseFloat(k.dataset.val)); e.target.style.color = '#fff'; document.getElementById('btn-a').style.color = '#aaa'; document.getElementById('ab-slider').value = 1; });
+document.getElementById('ab-slider').addEventListener('input', (e) => { if(!stateA || !stateB) return; let mix = parseFloat(e.target.value); document.querySelectorAll('.knob-svg').forEach(k => { setKnobValue(k, stateA[k.id] * (1 - mix) + stateB[k.id] * mix); }); });
+
+let isFrozen = false;
+document.getElementById('btn-freeze').addEventListener('click', (e) => {
+    isFrozen = !isFrozen;
+    e.target.classList.toggle('active', isFrozen);
+    sendParam('trace', isFrozen ? 1 : 0);
+});
+
+document.getElementById('btn-mic').addEventListener('click', async (e) => {
+    if(!audioCtx) await initAudio();
+    if(micStream) return; // already active
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        micStream = audioCtx.createMediaStreamSource(stream);
+        if(fileSource) { fileSource.disconnect(); fileSource = null; document.getElementById('btn-file').classList.remove('active'); }
+        micStream.connect(extGain);
+        e.target.classList.add('active');
+    } catch(err) { alert('Microphone access denied or unavailable.'); }
+});
+
+document.getElementById('btn-file').addEventListener('click', () => { document.getElementById('file-upload').click(); });
+document.getElementById('file-upload').addEventListener('change', async (e) => {
+    if(!audioCtx) await initAudio();
+    let file = e.target.files[0]; if(!file) return;
+    let reader = new FileReader();
+    reader.onload = async function(ev) {
+        let audioData = await audioCtx.decodeAudioData(ev.target.result);
+        if(micStream) { micStream.disconnect(); micStream = null; document.getElementById('btn-mic').classList.remove('active'); }
+        if(fileSource) { fileSource.disconnect(); }
+        fileSource = audioCtx.createBufferSource();
+        fileSource.buffer = audioData; fileSource.loop = true;
+        fileSource.connect(extGain); fileSource.start(0);
+        document.getElementById('btn-file').classList.add('active');
+    };
+    reader.readAsArrayBuffer(file);
+});
+
+document.getElementById('btn-rec').addEventListener('click', (e) => {
+    if(!audioCtx) return;
+    if (!isRecording) { isRecording = true; recBuffersL = []; recBuffersR = []; recLength = 0; e.target.style.background = 'var(--c-red)'; e.target.style.color = '#000'; } 
+    else { isRecording = false; e.target.style.background = 'transparent'; e.target.style.color = '#fff'; exportWAV(); }
+});
+function exportWAV() {
+    let interleaved = new Float32Array(recLength * 2); let offset = 0;
+    for (let i = 0; i < recBuffersL.length; i++) { let bufL = recBuffersL[i]; let bufR = recBuffersR[i]; for (let j = 0; j < bufL.length; j++) { interleaved[offset++] = bufL[j]; interleaved[offset++] = bufR[j]; } }
+    let buffer = new ArrayBuffer(44 + interleaved.length * 2); let view = new DataView(buffer);
+    let writeString = function(view, offset, string) { for (let i=0; i<string.length; i++) view.setUint8(offset + i, string.charCodeAt(i)); };
+    writeString(view, 0, 'RIFF'); view.setUint32(4, 36 + interleaved.length * 2, true); writeString(view, 8, 'WAVE');
+    writeString(view, 12, 'fmt '); view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 2, true);
+    view.setUint32(24, audioCtx.sampleRate, true); view.setUint32(28, audioCtx.sampleRate * 4, true); view.setUint16(32, 4, true); view.setUint16(34, 16, true);
+    writeString(view, 36, 'data'); view.setUint32(40, interleaved.length * 2, true);
+    let o = 44; for (let i = 0; i < interleaved.length; i++, o += 2) { let s = Math.max(-1, Math.min(1, interleaved[i])); view.setInt16(o, s < 0 ? s * 0x8000 : s * 0x7FFF, true); }
+    let blob = new Blob([view], { type: 'audio/wav' }); let url = URL.createObjectURL(blob); let a = document.createElement('a'); a.style.display = 'none'; a.href = url;
+    let pName = document.getElementById('preset-list').value; a.download = `MNEMOSYNE_${pName === 'init' ? 'RAW' : pName.replace(' ', '_')}.wav`;
+    document.body.appendChild(a); a.click(); URL.revokeObjectURL(url);
+}
+
+const words1 = ["EIDOLON", "SILICA", "LETHE", "CANTOR", "STRATUM", "PALE", "DUSK", "MOSAIC"];
+const words2 = ["WASH", "DUST", "FAULT", "TIDE", "FRIT", "SHATTER", "VEIL", "ECHO"];
+function refreshPresetList() {
+    const list = document.getElementById('preset-list'); list.innerHTML = '<option value="init">INITIALIZED</option>';
+    for(let pName in presets) { let opt = document.createElement('option'); opt.value = pName; opt.textContent = pName; list.appendChild(opt); }
+}
+refreshPresetList();
+document.getElementById('btn-dump').addEventListener('click', () => {
+    let name = words1[Math.floor(Math.random() * words1.length)] + " " + words2[Math.floor(Math.random() * words2.length)];
+    let state = {}; document.querySelectorAll('.knob-svg').forEach(k => { state[k.id] = parseFloat(k.dataset.val); });
+    presets[name] = state; localStorage.setItem('mnemosyne_presets_v1', JSON.stringify(presets)); refreshPresetList(); document.getElementById('preset-list').value = name;
+});
+document.getElementById('preset-list').addEventListener('change', (e) => {
+    if(e.target.value === 'init') return; let state = presets[e.target.value];
+    if(state) { for(let key in state) { let el = document.getElementById(key); if(el && el.classList.contains('knob-svg')) setKnobValue(el, state[key]); } }
+});
+</script>
+</body>
+</html>
