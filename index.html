@@ -19,7 +19,7 @@
     
     .column { width: 155px; display: flex; flex-direction: column; align-items: center; border-right: 1px solid var(--col-div); padding: 0 5px; position: relative; }
     .column:last-child { border-right: none; }
-    .col-header { font-size: 14px; letter-spacing: 2px; margin-bottom: 20px; text-transform: uppercase; color: var(--text-dim); height: 20px; text-align: center; transition: color 0.05s ease, text-shadow 0.05s ease; }
+    .col-header { font-size: 14px; letter-spacing: 2px; margin-bottom: 20px; text-transform: uppercase; color: var(--text-dim); height: 20px; text-align: center; transition: color 0.3s ease, text-shadow 0.3s ease; }
     
     .oled-container { width: 140px; background: #000; border: 1px solid #333; margin-bottom: 15px; display: flex; flex-direction: column; align-items: center; padding: 5px; box-sizing: border-box; box-shadow: inset 0 0 10px rgba(255,255,255,0.05); }
     #scope { width: 100%; height: 40px; background: #050505; margin-bottom: 6px; border: 1px solid #222; cursor: pointer; }
@@ -53,7 +53,7 @@
     <div class="panel-core">
         
         <!-- COLUMN 1: SYSTEM & OLED -->
-        <div class="column col-sys">
+        <div class="column col-sys" data-col="sys">
             <div class="col-header" id="hdr-sys">SYSTEM</div>
             <div class="oled-container">
                 <canvas id="scope" title="Click to toggle Seismograph"></canvas>
@@ -91,7 +91,7 @@
         </div>
 
         <!-- COLUMN 2: I. PATINA -->
-        <div class="column col-pat">
+        <div class="column col-pat" data-col="pat">
             <div class="col-header" id="hdr-pat">I. PATINA</div>
             <div class="knob-group" style="margin-top: 30px;"><div class="knob-container"><div class="knob-label">CADENCE</div><svg class="knob-svg" id="cadence" data-val="0.5" viewBox="0 0 44 44"><circle class="knob-bg" cx="22" cy="22" r="18"></circle><line class="knob-indicator" x1="22" y1="22" x2="22" y2="8"></line></svg></div></div>
             <div class="knob-row" style="margin-top: 30px;">
@@ -102,7 +102,7 @@
         </div>
 
         <!-- COLUMN 3: II. TESSELLATION -->
-        <div class="column col-tes">
+        <div class="column col-tes" data-col="tes">
             <div class="col-header" id="hdr-tes">II. TESSELLATION</div>
             <div class="knob-group" style="margin-top: 30px;"><div class="knob-container"><div class="knob-label">BLOCK</div><svg class="knob-svg" id="block" data-val="0.8" viewBox="0 0 44 44"><circle class="knob-bg" cx="22" cy="22" r="18"></circle><line class="knob-indicator" x1="22" y1="22" x2="22" y2="8"></line></svg></div></div>
             <div class="knob-row" style="margin-top: 30px;">
@@ -113,7 +113,7 @@
         </div>
 
         <!-- COLUMN 4: III. DESCENT -->
-        <div class="column col-des">
+        <div class="column col-des" data-col="des">
             <div class="col-header" id="hdr-des">III. DESCENT</div>
             <div class="knob-group" style="margin-top: 30px;"><div class="knob-container"><div class="knob-label">UNDERTOW</div><svg class="knob-svg" id="undertow" data-val="0" viewBox="0 0 44 44"><circle class="knob-bg" cx="22" cy="22" r="18"></circle><line class="knob-indicator" x1="22" y1="22" x2="22" y2="8"></line></svg></div></div>
             <div class="knob-row" style="margin-top: 30px;">
@@ -170,14 +170,11 @@ class MnemoProcessor extends AudioWorkletProcessor {
         this.fault_state = 0; this.g1=1; this.g2=1; this.g3=1; this.g4=1;
         this.dust_octave = 0; this.spin_scatter = 0; this.spin_gate = 0; this.euclid_acc = 0;
         this.glitch_L=0; this.glitch_R=0;
-        this.TWOPI = Math.PI * 2; this.fc = 0;
-        
-        this.tel_mosaic = 0; this.tel_shatter = 0; this.tel_cantor = 0; this.tel_bbd = 0;
+        this.TWOPI = Math.PI * 2;
     }
     slide(t, c, u, d) { if(isNaN(c)) c=0; let diff=t-c; return c+(diff>0?diff/Math.max(1,u):diff/Math.max(1,d)); }
     noise() { return Math.random()*2-1; }
     wrap(v, min, max) { let r=max-min; if(r===0) return min; let res=(v-min)%r; if(res<0) res+=r; return res+min; }
-    sah(val, trig, thresh = -0.5, ref) { if (trig < thresh) return val; return ref; }
     
     process(ins, outs) {
         const input = ins[0][0]; const outL = outs[0][0]; const outR = outs[0][1];
@@ -369,17 +366,6 @@ class MnemoProcessor extends AudioWorkletProcessor {
 
             outL[i] = in1 * (1 - this.p.trace) + wet_L * this.p.trace;
             outR[i] = in1 * (1 - this.p.trace) + wet_R * this.p.trace;
-
-            this.tel_mosaic = Math.abs(mosaic_core);
-            this.tel_shatter = Math.abs(foldL);
-            this.tel_cantor = Math.abs(cantor_sig);
-            this.tel_bbd = Math.abs(bbd_lp);
-        }
-
-        this.fc += outL.length;
-        if (this.fc >= 1024) { 
-            this.port.postMessage({ type: 'telemetry', envs: [this.tel_mosaic, this.tel_shatter, this.tel_cantor, this.tel_bbd] }); 
-            this.fc = 0; 
         }
         return true;
     }
@@ -411,14 +397,37 @@ function drawScope() {
 }
 drawScope();
 
-function setKnobValue(knob, val) { val = Math.max(0, Math.min(1, val)); knob.dataset.val = val; let angle = -135 + (val * 270); knob.querySelector('.knob-indicator').setAttribute('transform', `rotate(${angle}, 22, 22)`); sendParam(knob.id, val); }
+function setKnobValue(knob, val) { val = Math.max(0, Math.min(1, val)); knob.dataset.val = val; let angle = -135 + (val * 270); knob.querySelector('.knob-indicator').setAttribute('transform', `rotate(${angle}, 22, 22)`); sendParam(knob.id, val); updateColumnGlow(knob); }
 function sendParam(id, val) { if (mnemoNode) mnemoNode.port.postMessage({ id: id, value: val }); }
-function syncAllParams() { document.querySelectorAll('.knob-svg').forEach(knob => { sendParam(knob.id, parseFloat(knob.dataset.val)); }); }
+function syncAllParams() { document.querySelectorAll('.knob-svg').forEach(knob => { sendParam(knob.id, parseFloat(knob.dataset.val)); updateColumnGlow(knob); }); }
 
-function updateGlow(id, intensity, r, g, b) {
-    const el = document.getElementById(id); if(!el) return; let i = Math.min(1, intensity * 2.5);
-    if (i < 0.02) { el.style.color = 'var(--text-dim)'; el.style.textShadow = 'none'; } 
-    else { el.style.color = `rgba(${r}, ${g}, ${b}, ${0.7 + i * 0.3})`; el.style.textShadow = `0 0 ${i * 8}px rgba(${r}, ${g}, ${b}, ${i}), 0 0 ${i * 16}px rgba(${r}, ${g}, ${b}, ${i * 0.5})`; }
+// HOT BULB GLOW LOGIC (Based on physical dial positions)
+function updateColumnGlow(knob) {
+    const col = knob.closest('.column');
+    if (!col) return;
+    const colId = col.dataset.col;
+    const header = col.querySelector('.col-header');
+    if (!header) return;
+    
+    const knobsInCol = col.querySelectorAll('.knob-svg');
+    let sum = 0;
+    knobsInCol.forEach(k => sum += parseFloat(k.dataset.val));
+    let avg = sum / knobsInCol.length; // 0.0 to 1.0
+    
+    let baseColor = 'var(--text-dim)';
+    let rgb = '187, 187, 187';
+    if (colId === 'sys') { rgb = '0, 255, 68'; }
+    else if (colId === 'pat') { rgb = '255, 157, 0'; }
+    else if (colId === 'tes') { rgb = '0, 170, 255'; }
+    else if (colId === 'des') { rgb = '255, 68, 68'; }
+    
+    if (avg < 0.05) {
+        header.style.color = 'var(--text-dim)';
+        header.style.textShadow = 'none';
+    } else {
+        header.style.color = `rgba(${rgb}, ${0.5 + avg * 0.5})`;
+        header.style.textShadow = `0 0 ${avg * 8}px rgba(${rgb}, ${avg * 0.8}), 0 0 ${avg * 16}px rgba(${rgb}, ${avg * 0.4})`;
+    }
 }
 
 let isRecording = false; let recBuffersL = []; let recBuffersR = []; let recLength = 0;
@@ -430,16 +439,6 @@ async function initAudio() {
     const blob = new Blob([workletString], { type: 'application/javascript' });
     await audioCtx.audioWorklet.addModule(URL.createObjectURL(blob));
     mnemoNode = new AudioWorkletNode(audioCtx, 'mnemo-node', { outputChannelCount: [2] });
-    
-    mnemoNode.port.onmessage = e => {
-        if (e.data.type === 'telemetry') {
-            const [e1, e2, e3, e4] = e.data.envs;
-            updateGlow('hdr-sys', e1, 0, 255, 68);   // Green
-            updateGlow('hdr-pat', e2, 255, 157, 0);  // Amber
-            updateGlow('hdr-tes', e3, 0, 170, 255);  // Cyan
-            updateGlow('hdr-des', e4, 255, 68, 68);  // Red
-        }
-    };
     
     extGain = audioCtx.createGain(); extGain.connect(mnemoNode);
     analyzer = audioCtx.createAnalyser(); analyzer.fftSize = 512; scopeData = new Uint8Array(analyzer.frequencyBinCount);
@@ -486,7 +485,7 @@ document.getElementById('btn-freeze').addEventListener('click', (e) => {
 
 document.getElementById('btn-mic').addEventListener('click', async (e) => {
     if(!audioCtx) await initAudio();
-    if(micStream) return; // already active
+    if(micStream) return;
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         micStream = audioCtx.createMediaStreamSource(stream);
